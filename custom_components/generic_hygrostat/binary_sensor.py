@@ -155,7 +155,7 @@ class GenericHygrostat(Entity):
         self._icon = "mdi:water-percent"
 
         self._async_update()
-
+        _LOGGER.debug("Quiet time start %s", self.quiet_time_start)
         async_track_time_interval(hass, self._async_update, sample_interval)
 
     @callback
