@@ -24,7 +24,7 @@ DEPENDENCIES = ["sensor"]
 
 SAMPLE_DURATION = timedelta(minutes=15)
 
-DEFAULT_NAME = "Generic Hygrostat"
+DEFAULT_NAME = "Roy's Generic Hygrostat"
 
 ATTR_NUMBER_OF_SAMPLES = "number_of_samples"
 ATTR_LOWEST_SAMPLE = "lowest_sample"
@@ -32,6 +32,8 @@ ATTR_TARGET = "target"
 ATTR_MIN_ON_TIMER = "min_on_timer"
 ATTR_MAX_ON_TIMER = "max_on_timer"
 ATTR_MIN_HUMIDITY = "min_humidity"
+ATTR_QUIET_TIME_START = "quiet_time_start"
+ATTR_QUIET_TIME_END = "quiet_time_end"
 
 CONF_SENSOR = "sensor"
 CONF_ATTRIBUTE = "attribute"
@@ -40,6 +42,8 @@ CONF_TARGET_OFFSET = "target_offset"
 CONF_MIN_ON_TIME = "min_on_time"
 CONF_MAX_ON_TIME = "max_on_time"
 CONF_MIN_HUMIDITY = "min_humidity"
+CONF_QUIET_TIME_START = "quiet_time_start"
+CONF_QUIET_TIME_END = "quiet_time_end"
 
 CONF_SAMPLE_INTERVAL = "sample_interval"
 
@@ -49,6 +53,8 @@ DEFAULT_MIN_ON_TIME = timedelta(seconds=0)
 DEFAULT_MAX_ON_TIME = timedelta(seconds=7200)
 DEFAULT_SAMPLE_INTERVAL = timedelta(minutes=5)
 DEFAULT_MIN_HUMIDITY = 0
+DEFAULT_QUIET_TIME_START = "00:00:00"
+DEFAULT_QUIET_TIME_END = "00:00:00"
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
@@ -61,6 +67,8 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
         vol.Optional(CONF_MAX_ON_TIME, default=DEFAULT_MAX_ON_TIME): cv.time_period,
         vol.Optional(CONF_SAMPLE_INTERVAL, default=DEFAULT_SAMPLE_INTERVAL): cv.time_period,
         vol.Optional(CONF_MIN_HUMIDITY, default=DEFAULT_MIN_HUMIDITY): vol.Coerce(float),
+        vol.Optional(CONF_QUIET_TIME_START, default=DEFAULT_QUIET_TIME_START): cv.time,
+        vol.Optional(CONF_QUIET_TIME_END, default=DEFAULT_QUIET_TIME_END): cv.time,
         vol.Optional(CONF_UNIQUE_ID): cv.string,
     }
 )
@@ -78,6 +86,8 @@ def async_setup_platform(hass, config, async_add_devices, discovery_info=None):
     max_on_time = config.get(CONF_MAX_ON_TIME)
     sample_interval = config.get(CONF_SAMPLE_INTERVAL)
     min_humidity = config.get(CONF_MIN_HUMIDITY)
+    quiet_time_start = config.get(CONF_QUIET_TIME_START)
+    quiet_time_end = config.get(CONF_QUIET_TIME_END)
     unique_id = config.get(CONF_UNIQUE_ID)
 
     async_add_devices(
@@ -93,6 +103,8 @@ def async_setup_platform(hass, config, async_add_devices, discovery_info=None):
                 max_on_time,
                 sample_interval,
                 min_humidity,
+                quiet_time_start,
+                quiet_time_end,
                 unique_id,
             )
         ]
@@ -114,6 +126,8 @@ class GenericHygrostat(Entity):
         max_on_time,
         sample_interval,
         min_humidity,
+        quiet_time_start,
+        quiet_time_end,
         unique_id,
     ):
         """Initialize the hygrostat."""
@@ -126,6 +140,8 @@ class GenericHygrostat(Entity):
         self.min_on_time = min_on_time
         self.max_on_time = max_on_time
         self.min_humidity = min_humidity
+        self.quiet_time_start = quiet_time_start
+        self.quiet_time_end = quiet_time_end
         self._unique_id = unique_id
 
         self.sensor_humidity = None
@@ -238,7 +254,7 @@ class GenericHygrostat(Entity):
     def set_max_on_timer(self):
         """Setting max on timer."""
         if self.max_on_timer is None:
-            self.max_on_timer = datetime.now() + self.max_on_time
+            self.max_on_timer = min(datetime.now() + self.max_on_time, self.quiet_time_start)
 
     def reset_max_on_timer(self):
         """Unsetting max on timer."""
@@ -246,7 +262,8 @@ class GenericHygrostat(Entity):
 
     def set_on(self):
         """Setting hygrostat to on."""
-        self.set_state(STATE_ON)
+        if datetime.now() > self.quiet_time_end & datetime.now() < self.quiet_time_start:
+            self.set_state(STATE_ON)
         self.set_dehumidification_target()
         self.set_min_on_timer()
         self.set_max_on_timer()

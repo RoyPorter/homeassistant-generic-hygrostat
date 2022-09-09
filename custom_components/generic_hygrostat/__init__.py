@@ -1,1 +1,1 @@
-"""Generic hygrostat"""
+"""Roy's Generic hygrostat"""
